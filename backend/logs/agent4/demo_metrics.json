@@ -1,0 +1,52 @@
+{
+  "session_duration_min": 0.001209886868794759,
+  "total_explanations": 25,
+  "trust_score": {
+    "current": 0.8454560034152276,
+    "mean": 0.8320742650204204,
+    "min": 0.7087751741429422,
+    "max": 0.9353482379384134,
+    "std": 0.07088642891735036,
+    "distribution": {
+      "< 0.5 (Low)": 0,
+      "0.5-0.7 (Med)": 0,
+      "0.7-0.85 (Good)": 14,
+      ">= 0.85 (Excellent)": 11
+    }
+  },
+  "violations": {
+    "total": 9,
+    "unique_types": 1,
+    "top_5": [
+      [
+        "Price mismatch",
+        9
+      ]
+    ]
+  },
+  "llm": {
+    "calls": 10,
+    "fallbacks": 15,
+    "repetitions": 5,
+    "repetition_rate_%": 50.0
+  },
+  "verification": {
+    "verified": 20,
+    "unverified": 5,
+    "rate_%": 80.0
+  },
+  "latency_ms": {
+    "current": 2301,
+    "mean": 1552.04,
+    "min": 616,
+    "max": 2442,
+    "p50": 1618,
+    "p95": 2401,
+    "p99": 2442
+  },
+  "errors": {
+    "count": 0,
+    "recent": []
+  },
+  "exported_at": "2026-01-29T15:10:07.296634"
+}

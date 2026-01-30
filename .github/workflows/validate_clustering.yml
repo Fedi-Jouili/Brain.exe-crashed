@@ -1,0 +1,96 @@
+name: Validate Clustering Artifacts
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/data/products_clustered.json"
+      - "backend/validators/cluster_validator.py"
+      - "backend/tests/test_clustering_artifacts.py"
+      - ".github/workflows/validate_clustering.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "backend/data/products_clustered.json"
+      - "backend/validators/cluster_validator.py"
+      - "backend/tests/test_clustering_artifacts.py"
+  workflow_dispatch:
+
+jobs:
+  validate-clustering:
+    name: Validate Clustering Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Check clustering artifacts exist
+        run: |
+          if [ ! -f backend/data/products_clustered.json ]; then
+            echo "❌ ERROR: Clustering artifacts not found"
+            echo "Run: python backend/scripts/cluster_products.py (with Python 3.11/3.12)"
+            exit 1
+          fi
+          echo "✅ Clustering artifacts found"
+
+      - name: Validate JSON format
+        run: |
+          python -c "import json; data=json.load(open('backend/data/products_clustered.json')); print(f'✅ Valid JSON: {len(data)} products')"
+
+      - name: Run clustering validation tests
+        run: |
+          cd backend
+          python -m pytest tests/test_clustering_artifacts.py -v --tb=short
+
+      - name: Generate validation report
+        if: success()
+        run: |
+          python -c "
+          import json
+          import sys
+          sys.path.insert(0, 'backend')
+          from validators.cluster_validator import get_validation_summary
+
+          products = json.load(open('backend/data/products_clustered.json'))
+          summary = get_validation_summary(products)
+
+          print('\\n' + '='*80)
+          print('CLUSTERING VALIDATION REPORT')
+          print('='*80)
+          print(f'Total Products: {summary[\"total_products\"]}')
+          print(f'Valid Products: {summary[\"valid_products\"]}')
+          print(f'Invalid Products: {summary[\"invalid_products\"]}')
+          print(f'\\nCluster Distribution:')
+          for cluster_id in sorted(summary['cluster_distribution'].keys()):
+              count = summary['cluster_distribution'][cluster_id]
+              print(f'  Cluster {cluster_id}: {count} products')
+          print('='*80)
+          "
+
+      - name: Fail on validation errors
+        if: failure()
+        run: |
+          echo "❌ Clustering validation failed"
+          echo ""
+          echo "Possible issues:"
+          echo "  - Embedding dimension ≠ 512"
+          echo "  - Missing cluster_id"
+          echo "  - cluster_id out of range [0, 9]"
+          echo "  - Invalid JSON format"
+          echo ""
+          echo "To fix:"
+          echo "  1. Activate Python 3.11 environment: .venv-py311/Scripts/activate"
+          echo "  2. Re-run clustering: python backend/scripts/cluster_products.py"
+          echo "  3. Verify outputs: pytest backend/tests/test_clustering_artifacts.py"
+          exit 1
