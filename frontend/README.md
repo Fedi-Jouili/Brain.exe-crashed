@@ -1,95 +1,172 @@
-# PriceSense Frontend
+# FinCommerce Engine - Frontend
 
-Streamlit-based web interface for the PriceSense AI recommendation system.
+Streamlit web application for the FinCommerce Engine recommendation system.
 
 ## Features
 
-- 🔍 **Smart Search**: Natural language product search
-- 💰 **Financial Profile**: Optional income/expense analysis
-- 🎯 **Personalized Recommendations**: AI-powered product matching
-- 📊 **Score Breakdown**: Transparent scoring system
-- 💡 **Explanations**: Why each product was recommended
-- 👍 **Feedback System**: Like, purchase, or dismiss recommendations
-- ⚡ **Multiple Paths**: FAST (cached), SMART, or DEEP analysis
+- 🔍 **Product Search**: Text and image-based search
+- 💰 **Affordability Analysis**: Real-time budget checks
+- 🎯 **Smart Recommendations**: Thompson Sampling-powered
+- 📊 **Admin Dashboard**: System metrics and monitoring
+- 👤 **User Profiles**: Personalized financial analysis
 
-## Setup
+## Installation
 
-1. Install dependencies:
+```bash
+cd frontend
+pip install -r requirements.txt
+```
+
+## Running the App
+
+```bash
+# Ensure backend is running first
+cd ../backend
+python main.py
+
+# In another terminal, start frontend
+cd frontend
+streamlit run app.py
+```
+
+The app will open in your browser at: `http://localhost:8501`
+
+## Usage
+
+1. **Setup Profile**: Navigate to Profile page and enter your financial information
+2. **Search Products**: Use the Search page to find products
+3. **Review Recommendations**: See affordability analysis and AI explanations
+4. **Track Interactions**: Click buttons to track actions (Thompson Sampling)
+5. **Monitor System**: View metrics on the Dashboard page
+
+## Architecture
+
+- **Main Entry**: `app.py`
+- **Pages**: Multi-page app with navigation
+  - `1_🔍_Search.py` - Product search interface
+  - `2_👤_Profile.py` - User profile management
+  - `3_📊_Dashboard.py` - Admin metrics dashboard
+- **Components**: Reusable UI components
+  - `product_card.py` - Product display with interactions
+- **Utils**: API client and session management
+  - `api_client.py` - Backend API communication
+  - `session_state.py` - Session state management
+  - `styling.py` - Custom CSS styling
+
+## Configuration
+
+Edit `utils/api_client.py` to change backend URL:
+
+```python
+def __init__(self, base_url: str = "http://localhost:8000"):
+```
+
+## Project Structure
+
+```
+frontend/
+├── app.py                      # Main entry point
+├── pages/
+│   ├── 1_🔍_Search.py         # Search page
+│   ├── 2_👤_Profile.py        # Profile page
+│   └── 3_📊_Dashboard.py      # Dashboard page
+├── components/
+│   ├── __init__.py
+│   └── product_card.py        # Product display component
+├── utils/
+│   ├── __init__.py
+│   ├── api_client.py          # Backend API client
+│   ├── session_state.py       # Session management
+│   └── styling.py             # Custom CSS
+├── assets/                     # Static assets
+├── requirements.txt           # Python dependencies
+└── README.md                  # This file
+```
+
+## Troubleshooting
+
+### Issue: Cannot connect to backend
+**Solution**: Ensure backend is running on port 8000
+
+```bash
+cd backend
+python main.py
+```
+
+### Issue: Slow search
+**Solution**: Check backend logs for performance issues
+
+### Issue: Session state lost
+**Solution**: Streamlit session state is temporary - save important data externally
+
+### Issue: Import errors
+**Solution**: Install all dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Ensure the backend API is running:
-```bash
-cd ../backend
-uvicorn main:app --reload
-```
+## Features by Page
 
-3. Run the Streamlit app:
-```bash
-streamlit run app.py
-```
+### Home (app.py)
+- System status overview
+- Quick navigation
+- Quick start guide
 
-4. Open your browser to: http://localhost:8501
+### Search Page
+- Text search input
+- Image upload (multimodal search)
+- Real-time recommendations
+- Product cards with affordability
+- Interaction tracking
 
-## Usage
+### Profile Page
+- User information form
+- Financial data entry
+- Profile summary display
 
-### Basic Search
-1. Enter a product query (e.g., "gaming laptop")
-2. Click "Search"
-3. View recommendations with explanations
+### Dashboard Page
+- System health monitoring
+- Thompson Sampling statistics
+- Cache performance metrics
+- Auto-refresh capability
 
-### With Financial Analysis
-1. Enable "Include financial analysis" in the sidebar
-2. Enter your financial information:
-   - Monthly income and expenses
-   - Savings and debt
-   - Credit score
-3. Search for products
-4. Get personalized affordability analysis
+## Development
 
-### Provide Feedback
-For each recommendation, you can:
-- 👍 **Like**: Product matches your needs
-- 🛒 **Purchase**: You bought/plan to buy this
-- 👎 **Not Interested**: Not a good match
+### Adding New Pages
 
-Feedback helps improve future recommendations via Thompson Sampling.
+1. Create new file in `pages/` directory with format: `N_🔧_Name.py`
+2. Use the same page config as other pages
+3. Import utilities from `utils/` module
 
-## Architecture
+### Adding New Components
 
-```
-User Interface (Streamlit)
-         ↓
-    API Client (requests)
-         ↓
-FastAPI Backend (localhost:8000)
-         ↓
-Multi-Agent System
-```
+1. Create new file in `components/` directory
+2. Define render function
+3. Import in pages where needed
 
-## Configuration
+## Production Deployment
 
-Edit `app.py` to customize:
-- `API_BASE_URL`: Backend API URL (default: http://localhost:8000)
-- Custom CSS styling
-- Layout and UI components
+1. Set environment variables for production backend URL
+2. Configure authentication if needed
+3. Enable HTTPS
+4. Set up monitoring and logging
+5. Consider using Streamlit Cloud or Docker
 
-## Features Explained
+## Support
 
-### Search Paths
-- **⚡ FAST**: Cached results (instant)
-- **🧠 SMART**: Quick analysis without financial filtering
-- **🔬 DEEP**: Full 5-agent pipeline with financial analysis
+For issues or questions, check:
+- Backend API documentation: `http://localhost:8000/api/docs`
+- Project repository: [GitHub URL]
+- Report bugs: [Issues URL]
 
-### Score Components
-- **Thompson Sampling**: Learned user preferences
-- **Semantic Score**: Query-product relevance
-- **Collaborative**: Similar user preferences
-- **RAGAS**: Recommendation quality score
-- **Financial**: Affordability analysis (if profile provided)
+## License
 
-### Trust Scores
-- **80-100%**: High confidence (verified facts)
-- **60-79%**: Medium confidence (some discrepancies)
-- **0-59%**: Low confidence (template/fallback)
+[Your License Here]
+
+## Acknowledgments
+
+Built with:
+- Streamlit
+- FinCommerce Engine Backend
+- LangGraph, Thompson Sampling, Gemini 2.0 Flash

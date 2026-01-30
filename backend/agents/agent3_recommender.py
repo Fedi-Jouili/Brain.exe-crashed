@@ -2,6 +2,12 @@
 Agent 3: Smart Recommender
 Applies Thompson Sampling, collaborative filtering, and diversity injection
 to rank and recommend products
+
+ARCHITECTURE:
+Uses MCP tools abstraction for loose coupling:
+- thompson_sample_ranking tool (instead of direct ThompsonSamplingEngine)
+- Clean separation of concerns
+- Testable with mocked tools
 """
 from typing import Dict, Any, List, Optional, Tuple, Union
 import logging
@@ -17,7 +23,8 @@ except ImportError:
     Product = Any
     Recommendation = Any
 
-from ml.thompson_sampling import ThompsonSamplingEngine
+# MCP Tools (Model Context Protocol abstraction)
+from tools.mcp_tools import thompson_sample_ranking
 
 try:
     from core.qdrant_client import qdrant_manager
@@ -74,10 +81,7 @@ class SmartRecommenderAgent:
         self.ragas_weight = 0.2
         self.diversity_weight = 0.1
 
-        # Initialize Thompson Sampling engine (production-safe batch API)
-        self.thompson_engine = ThompsonSamplingEngine()
-
-        logger.info("Smart Recommender Agent initialized with Thompson Sampling engine")
+        logger.info("Smart Recommender Agent initialized with MCP tools")
 
     def execute(self, state: Union[Dict[str, Any], AgentState]) -> Union[Dict[str, Any], AgentState]:
         """
@@ -214,11 +218,7 @@ class SmartRecommenderAgent:
         """
         Get Thompson Sampling scores for a batch of products.
 
-        Uses production-safe rank_product_ids() for batch ranking.
-        Returns a mapping {product_id: score}.
-
-        This is the ONLY method that should interact with Thompson Sampling.
-        Agent 3 must NOT call sample_score() per product.
+        Uses MCP tool abstraction for loose coupling.
 
         Args:
             product_ids: List of product identifiers
@@ -230,15 +230,22 @@ class SmartRecommenderAgent:
             if not product_ids:
                 return {}
 
-            # Call production-safe batch ranking API
-            # Returns List[Tuple[product_id, thompson_score]] sorted by score
-            ranked_tuples = self.thompson_engine.rank_product_ids(product_ids)
+            # Use Thompson Sampling tool (loose coupling)
+            tool_result = thompson_sample_ranking.invoke({
+                "product_ids": product_ids
+            })
 
-            # Convert to dict and scale to 0-100
-            # Thompson scores are in [0, 1], scale to [0, 100] for consistency
+            # Handle tool failure gracefully
+            if not tool_result["success"]:
+                logger.warning(f"Thompson ranking tool failed: {tool_result['error']}")
+                # Return uniform scores (50.0) on error - never crash Agent 3
+                return {product_id: 50.0 for product_id in product_ids}
+
+            # Extract scores from tool result
+            # Tool returns scores in [0, 1] range, scale to [0, 100]
             thompson_scores = {
                 product_id: score * 100
-                for product_id, score in ranked_tuples
+                for product_id, score in tool_result["data"]["scores"].items()
             }
 
             logger.debug(f"Thompson batch ranking: {len(thompson_scores)} products scored")

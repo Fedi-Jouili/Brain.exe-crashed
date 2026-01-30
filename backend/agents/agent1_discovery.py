@@ -1,6 +1,12 @@
 """
 Agent 1: Product Discovery Agent
 Finds products using CLIP-based multimodal semantic search
+
+ARCHITECTURE:
+Uses MCP tools abstraction for loose coupling:
+- qdrant_search_products tool (instead of direct qdrant_manager calls)
+- Clean separation of concerns
+- Testable with mocked tools
 """
 import time
 import logging
@@ -8,8 +14,10 @@ from typing import Dict, Any
 from models.state import AgentState
 from models.schemas import Product
 from core.embeddings import MultimodalEmbedder
-from core.qdrant_client import qdrant_manager
 from core.config import settings
+
+# MCP Tools (Model Context Protocol abstraction)
+from tools.mcp_tools import qdrant_search_products
 
 logger = logging.getLogger(__name__)
 
@@ -53,16 +61,29 @@ class ProductDiscoveryAgent:
             # Step 2: Build search filters
             filters = self._build_filters(state)
 
-            # Step 3: Search Qdrant
-            search_results = qdrant_manager.search_products(
-                query_vector=query_embedding,
-                top_k=self.top_k,
-                filters=filters,
-                score_threshold=0.7
-            )
+            # Step 3: Search using MCP tool (loose coupling)
+            tool_result = qdrant_search_products.invoke({
+                "query_vector": query_embedding,
+                "top_k": self.top_k,
+                "filters": filters,
+                "score_threshold": 0.7
+            })
+
+            # Handle tool result
+            if not tool_result["success"]:
+                logger.error(f"Product search tool failed: {tool_result['error']}")
+                state['candidate_products'] = []
+                state['search_time_ms'] = int((time.time() - start_time) * 1000)
+                if 'errors' not in state:
+                    state['errors'] = []
+                state['errors'].append(f"Product search failed: {tool_result['error']}")
+                return state
+
+            # Extract products from tool result
+            products_data = tool_result["data"]["products"]
 
             # Step 4: Convert to Product objects
-            candidate_products = self._convert_to_products(search_results)
+            candidate_products = self._convert_to_products_from_dicts(products_data)
 
             # Step 5: Update state
             state['candidate_products'] = candidate_products
@@ -161,39 +182,42 @@ class ProductDiscoveryAgent:
         logger.debug(f"Search filters: {filters}")
         return filters
 
-    def _convert_to_products(self, scored_points: list) -> list:
+    def _convert_to_products_from_dicts(self, products_data: list) -> list:
         """
-        Convert Qdrant scored points to Product objects
+        Convert product dictionaries to Product objects
+
+        NOTE: Tool already returns dictionaries (no Qdrant ScoredPoint objects),
+        so this is simpler than the old _convert_to_products method.
 
         Args:
-            scored_points: List of ScoredPoint from Qdrant
+            products_data: List of product dicts from tool
 
         Returns:
             List of Product objects
         """
         products = []
 
-        for point in scored_points:
+        for product_dict in products_data:
             try:
                 product = Product(
-                    product_id=point.payload['product_id'],
-                    name=point.payload['name'],
-                    description=point.payload['description'],
-                    price=point.payload['price'],
-                    category=point.payload['category'],
-                    rating=point.payload['rating'],
-                    num_reviews=point.payload['num_reviews'],
-                    image_url=point.payload.get('image_url'),
-                    in_stock=point.payload.get('in_stock', True),
-                    financing_available=point.payload.get('financing_available', False),
-                    financing_terms=point.payload.get('financing_terms'),
-                    cluster_id=point.payload.get('cluster_id'),
+                    product_id=product_dict['product_id'],
+                    name=product_dict['name'],
+                    description=product_dict['description'],
+                    price=product_dict['price'],
+                    category=product_dict['category'],
+                    rating=product_dict['rating'],
+                    num_reviews=product_dict['num_reviews'],
+                    image_url=product_dict.get('image_url'),
+                    in_stock=product_dict.get('in_stock', True),
+                    financing_available=product_dict.get('financing_available', False),
+                    financing_terms=product_dict.get('financing_terms'),
+                    cluster_id=product_dict.get('cluster_id'),
                     embedding=None  # Don't include embedding in response (large)
                 )
                 products.append(product)
 
             except Exception as e:
-                logger.warning(f"Failed to convert product {point.id}: {e}")
+                logger.warning(f"Failed to convert product {product_dict.get('product_id', 'UNKNOWN')}: {e}")
                 continue
 
         return products
