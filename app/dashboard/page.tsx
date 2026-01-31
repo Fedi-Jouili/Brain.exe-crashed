@@ -1,13 +1,21 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   DollarSign,
   CreditCard,
@@ -19,19 +27,60 @@ import {
   BarChart3,
   Wallet,
   ShieldCheck,
+  RefreshCcw,
 } from "lucide-react"
-import {
-  useProfileStore,
-  useRecentSearchStore,
-  calculateDisposableIncome,
-  calculateDTI,
-  calculateSafeSpendingLimit,
-} from "@/lib/store"
+import { useProfileStore, useRecentSearchStore } from "@/lib/store"
+import { profileApi, APIError, NetworkError } from "@/lib/api"
+import { ErrorState } from "@/components/ui/error-state"
+import type { FinancialAnalysis } from "@/lib/types"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { profile } = useProfileStore()
+  const { profile, financialAnalysis, setFinancialAnalysis } = useProfileStore()
   const { searches } = useRecentSearchStore()
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<{ type: "network" | "server" | "generic"; message?: string } | null>(null)
+
+  // Fetch financial analysis from backend
+  useEffect(() => {
+    if (!profile) return
+
+    const fetchAnalysis = async () => {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const analysis = await profileApi.getFinancialAnalysis()
+        setFinancialAnalysis(analysis)
+      } catch (err) {
+        if (err instanceof NetworkError) {
+          setError({ type: "network" })
+        } else if (err instanceof APIError && err.status >= 500) {
+          setError({ type: "server" })
+        } else {
+          // Use cached/local data if available, show warning
+          setError({ type: "generic", message: "Using cached data" })
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAnalysis()
+  }, [profile, setFinancialAnalysis])
+
+  const handleRetry = () => {
+    setError(null)
+    // Trigger refetch
+    if (profile) {
+      setIsLoading(true)
+      profileApi
+        .getFinancialAnalysis()
+        .then(setFinancialAnalysis)
+        .catch(() => setError({ type: "network" }))
+        .finally(() => setIsLoading(false))
+    }
+  }
 
   if (!profile) {
     return (
@@ -58,22 +107,24 @@ export default function DashboardPage() {
     )
   }
 
-  const disposableIncome = calculateDisposableIncome(profile)
-  const dti = calculateDTI(profile)
-  const safeSpendingLimit = calculateSafeSpendingLimit(profile)
-  const savingsMonths = profile.monthly_expenses > 0 
-    ? (profile.savings / profile.monthly_expenses).toFixed(1) 
-    : 0
-
-  const getCreditScoreLabel = (score: number) => {
-    if (score >= 800) return { label: "Excellent", color: "text-success" }
-    if (score >= 740) return { label: "Very Good", color: "text-success" }
-    if (score >= 670) return { label: "Good", color: "text-warning" }
-    if (score >= 580) return { label: "Fair", color: "text-warning" }
-    return { label: "Poor", color: "text-destructive" }
+  const getCreditLabel = (rating: string | undefined) => {
+    switch (rating) {
+      case "excellent":
+        return { label: "Excellent", color: "text-success" }
+      case "very_good":
+        return { label: "Very Good", color: "text-success" }
+      case "good":
+        return { label: "Good", color: "text-warning" }
+      case "fair":
+        return { label: "Fair", color: "text-warning" }
+      case "poor":
+        return { label: "Poor", color: "text-destructive" }
+      default:
+        return { label: "Unknown", color: "text-muted-foreground" }
+    }
   }
 
-  const creditLabel = getCreditScoreLabel(profile.credit_score)
+  const creditLabel = getCreditLabel(financialAnalysis?.credit_rating)
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -106,6 +157,16 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Error State */}
+          {error && error.type !== "generic" && (
+            <div className="mb-8">
+              <ErrorState
+                type={error.type}
+                onRetry={handleRetry}
+              />
+            </div>
+          )}
+
           {/* Profile Summary Cards */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
             <Card>
@@ -133,9 +194,19 @@ export default function DashboardPage() {
                 <Wallet className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold font-mono ${disposableIncome > 0 ? "text-success" : "text-destructive"}`}>
-                  ${disposableIncome.toLocaleString()}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <div
+                    className={`text-2xl font-bold font-mono ${
+                      (financialAnalysis?.disposable_income ?? 0) > 0
+                        ? "text-success"
+                        : "text-destructive"
+                    }`}
+                  >
+                    ${(financialAnalysis?.disposable_income ?? profile.monthly_income - profile.monthly_expenses).toLocaleString()}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
                   After expenses
                 </p>
@@ -167,11 +238,15 @@ export default function DashboardPage() {
                 <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-mono text-primary">
-                  ${safeSpendingLimit.toLocaleString()}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <div className="text-2xl font-bold font-mono text-primary">
+                    ${(financialAnalysis?.safe_spending_limit ?? 0).toLocaleString()}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
-                  Per purchase ({profile.risk_tolerance} risk)
+                  Per purchase ({profile.risk_tolerance || "medium"} risk)
                 </p>
               </CardContent>
             </Card>
@@ -181,10 +256,25 @@ export default function DashboardPage() {
             {/* Financial Health */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle>Financial Health</CardTitle>
-                <CardDescription>
-                  Key metrics that affect your affordability analysis
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Financial Health</CardTitle>
+                    <CardDescription>
+                      Key metrics that affect your affordability analysis
+                    </CardDescription>
+                  </div>
+                  {!isLoading && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleRetry}
+                      className="h-8 w-8"
+                    >
+                      <RefreshCcw className="h-4 w-4" />
+                      <span className="sr-only">Refresh data</span>
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-6">
                 {/* DTI Ratio */}
@@ -194,18 +284,40 @@ export default function DashboardPage() {
                       <TrendingUp className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Debt-to-Income Ratio</span>
                     </div>
-                    <span className={`text-sm font-mono font-medium ${dti < 36 ? "text-success" : dti < 43 ? "text-warning" : "text-destructive"}`}>
-                      {dti.toFixed(1)}%
-                    </span>
+                    {isLoading ? (
+                      <Skeleton className="h-5 w-16" />
+                    ) : (
+                      <span
+                        className={`text-sm font-mono font-medium ${
+                          (financialAnalysis?.dti_ratio ?? 0) < 36
+                            ? "text-success"
+                            : (financialAnalysis?.dti_ratio ?? 0) < 43
+                              ? "text-warning"
+                              : "text-destructive"
+                        }`}
+                      >
+                        {(financialAnalysis?.dti_ratio ?? 0).toFixed(1)}%
+                      </span>
+                    )}
                   </div>
-                  <Progress
-                    value={Math.min(dti, 100)}
-                    className={`h-3 ${dti < 36 ? "[&>div]:bg-success" : dti < 43 ? "[&>div]:bg-warning" : "[&>div]:bg-destructive"}`}
-                  />
+                  {isLoading ? (
+                    <Skeleton className="h-3 w-full" />
+                  ) : (
+                    <Progress
+                      value={Math.min(financialAnalysis?.dti_ratio ?? 0, 100)}
+                      className={`h-3 ${
+                        (financialAnalysis?.dti_ratio ?? 0) < 36
+                          ? "[&>div]:bg-success"
+                          : (financialAnalysis?.dti_ratio ?? 0) < 43
+                            ? "[&>div]:bg-warning"
+                            : "[&>div]:bg-destructive"
+                      }`}
+                    />
+                  )}
                   <p className="text-xs text-muted-foreground mt-2">
-                    {dti < 36
+                    {financialAnalysis?.dti_status === "healthy"
                       ? "Excellent! Your DTI is in a healthy range."
-                      : dti < 43
+                      : financialAnalysis?.dti_status === "moderate"
                         ? "Good, but consider paying down debt."
                         : "High DTI may limit financing options."}
                   </p>
@@ -220,18 +332,43 @@ export default function DashboardPage() {
                       <PiggyBank className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Emergency Fund</span>
                     </div>
-                    <span className={`text-sm font-mono font-medium ${Number(savingsMonths) >= 3 ? "text-success" : Number(savingsMonths) >= 1 ? "text-warning" : "text-destructive"}`}>
-                      {savingsMonths} months
-                    </span>
+                    {isLoading ? (
+                      <Skeleton className="h-5 w-20" />
+                    ) : (
+                      <span
+                        className={`text-sm font-mono font-medium ${
+                          (financialAnalysis?.emergency_fund_months ?? 0) >= 3
+                            ? "text-success"
+                            : (financialAnalysis?.emergency_fund_months ?? 0) >= 1
+                              ? "text-warning"
+                              : "text-destructive"
+                        }`}
+                      >
+                        {(financialAnalysis?.emergency_fund_months ?? 0).toFixed(1)} months
+                      </span>
+                    )}
                   </div>
-                  <Progress
-                    value={Math.min((Number(savingsMonths) / 6) * 100, 100)}
-                    className={`h-3 ${Number(savingsMonths) >= 3 ? "[&>div]:bg-success" : Number(savingsMonths) >= 1 ? "[&>div]:bg-warning" : "[&>div]:bg-destructive"}`}
-                  />
+                  {isLoading ? (
+                    <Skeleton className="h-3 w-full" />
+                  ) : (
+                    <Progress
+                      value={Math.min(
+                        ((financialAnalysis?.emergency_fund_months ?? 0) / 6) * 100,
+                        100
+                      )}
+                      className={`h-3 ${
+                        (financialAnalysis?.emergency_fund_months ?? 0) >= 3
+                          ? "[&>div]:bg-success"
+                          : (financialAnalysis?.emergency_fund_months ?? 0) >= 1
+                            ? "[&>div]:bg-warning"
+                            : "[&>div]:bg-destructive"
+                      }`}
+                    />
+                  )}
                   <p className="text-xs text-muted-foreground mt-2">
-                    {Number(savingsMonths) >= 6
+                    {financialAnalysis?.emergency_fund_status === "excellent"
                       ? "Great! You have a solid emergency fund."
-                      : Number(savingsMonths) >= 3
+                      : financialAnalysis?.emergency_fund_status === "good"
                         ? "Good start! Aim for 6 months of expenses."
                         : "Consider building your emergency fund."}
                   </p>
@@ -264,15 +401,50 @@ export default function DashboardPage() {
                     </div>
                     <div className="rounded-lg bg-success/10 p-3 text-center">
                       <p className="text-xs text-success">Available</p>
-                      <p className="text-lg font-bold font-mono text-success">
-                        ${disposableIncome.toLocaleString()}
-                      </p>
+                      {isLoading ? (
+                        <Skeleton className="h-7 w-16 mx-auto mt-1" />
+                      ) : (
+                        <p className="text-lg font-bold font-mono text-success">
+                          ${(financialAnalysis?.disposable_income ?? 0).toLocaleString()}
+                        </p>
+                      )}
                       <p className="text-xs text-success">
-                        {((disposableIncome / profile.monthly_income) * 100).toFixed(0)}%
+                        {financialAnalysis?.disposable_income
+                          ? ((financialAnalysis.disposable_income / profile.monthly_income) * 100).toFixed(0)
+                          : 0}
+                        %
                       </p>
                     </div>
                   </div>
                 </div>
+
+                {/* Financing Eligibility */}
+                {financialAnalysis && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Financing Eligibility</p>
+                          <p className="text-xs text-muted-foreground">
+                            Max monthly payment: $
+                            {financialAnalysis.max_monthly_payment.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          financialAnalysis.financing_eligible
+                            ? "bg-success/10 text-success"
+                            : "bg-destructive/10 text-destructive"
+                        }`}
+                      >
+                        {financialAnalysis.financing_eligible ? "Eligible" : "Not Eligible"}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -302,9 +474,7 @@ export default function DashboardPage() {
                 ) : (
                   <div className="text-center py-8">
                     <Search className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      No recent searches
-                    </p>
+                    <p className="text-sm text-muted-foreground">No recent searches</p>
                     <Button
                       variant="link"
                       className="mt-2"

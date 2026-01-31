@@ -24,9 +24,10 @@ import {
   Shield,
   Bot,
   Package,
+  Info,
 } from "lucide-react"
-import { useProfileStore, calculateDTI, calculateDisposableIncome } from "@/lib/store"
-import { api } from "@/lib/api"
+import { useProfileStore } from "@/lib/store"
+import { interactionApi } from "@/lib/api"
 import type { Recommendation } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -41,7 +42,7 @@ export function ProductDetailModal({
   open,
   onClose,
 }: ProductDetailModalProps) {
-  const { profile } = useProfileStore()
+  const { profile, financialAnalysis } = useProfileStore()
 
   if (!recommendation) return null
 
@@ -50,22 +51,22 @@ export function ProductDetailModal({
   const handlePurchase = async () => {
     if (!profile) return
 
-    try {
-      await api.trackInteraction({
-        user_id: profile.user_id,
-        product_id: product.product_id,
-        action: "purchase",
-      })
-    } catch {
-      // Silent fail
-    }
+    await interactionApi.track({
+      user_id: profile.user_id,
+      product_id: product.product_id,
+      action: "purchase",
+    })
   }
 
-  const disposableIncome = profile ? calculateDisposableIncome(profile) : 0
-  const dti = profile ? calculateDTI(profile) : 0
-  const monthlyPayment =
-    affordability.monthly_payment || Math.round(product.price / 12)
-  const pti = disposableIncome > 0 ? (monthlyPayment / disposableIncome) * 100 : 0
+  const handleAddToCart = async () => {
+    if (!profile) return
+
+    await interactionApi.track({
+      user_id: profile.user_id,
+      product_id: product.product_id,
+      action: "add_to_cart",
+    })
+  }
 
   const getAffordabilityInfo = () => {
     if (affordability.can_afford_cash) {
@@ -75,7 +76,8 @@ export function ProductDetailModal({
         bgColor: "bg-success/10",
         borderColor: "border-success/20",
         title: "Affordable (Cash)",
-        description: "You can purchase this product outright without impacting your financial health.",
+        description:
+          "You can purchase this product outright without impacting your financial health.",
       }
     }
     if (affordability.can_afford_financing) {
@@ -85,7 +87,8 @@ export function ProductDetailModal({
         bgColor: "bg-warning/10",
         borderColor: "border-warning/20",
         title: "Affordable (Financing)",
-        description: "This product is affordable with a financing plan. Monthly payments are within your budget.",
+        description:
+          "This product is affordable with a financing plan. Monthly payments are within your budget.",
       }
     }
     return {
@@ -94,7 +97,8 @@ export function ProductDetailModal({
       bgColor: "bg-destructive/10",
       borderColor: "border-destructive/20",
       title: "Currently Unaffordable",
-      description: "This product exceeds your safe spending limit. Consider alternatives or saving up.",
+      description:
+        "This product exceeds your safe spending limit. Consider alternatives or saving up.",
     }
   }
 
@@ -115,7 +119,11 @@ export function ProductDetailModal({
   }
 
   const riskIndicator = getRiskIndicator()
-  const RiskIcon = riskIndicator.icon
+
+  // Use backend-calculated values
+  const monthlyPayment = affordability.monthly_payment || 0
+  const ptiRatio = affordability.pti_ratio || 0
+  const dtiImpact = affordability.dti_impact || 0
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -193,6 +201,21 @@ export function ProductDetailModal({
               <p className="text-muted-foreground leading-relaxed">
                 {explanation.text}
               </p>
+
+              {/* Key Factors */}
+              {explanation.key_factors && explanation.key_factors.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {explanation.key_factors.map((factor, idx) => (
+                    <span
+                      key={idx}
+                      className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                    >
+                      {factor}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center gap-4 mt-4 text-xs">
                 <div className="flex items-center gap-1.5">
                   {explanation.verified ? (
@@ -200,7 +223,9 @@ export function ProductDetailModal({
                   ) : (
                     <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                   )}
-                  <span>{explanation.verified ? "Facts Verified" : "AI Generated"}</span>
+                  <span>
+                    {explanation.verified ? "Facts Verified" : "AI Generated"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5 text-primary" />
@@ -258,7 +283,9 @@ export function ProductDetailModal({
                     affordabilityInfo.bgColor
                   )}
                 >
-                  <AffordabilityIcon className={cn("h-5 w-5", affordabilityInfo.color)} />
+                  <AffordabilityIcon
+                    className={cn("h-5 w-5", affordabilityInfo.color)}
+                  />
                 </div>
                 <div>
                   <p className={cn("font-semibold", affordabilityInfo.color)}>
@@ -271,58 +298,97 @@ export function ProductDetailModal({
               </div>
             </div>
 
-            {/* Financial Metrics */}
+            {/* Financial Metrics (from backend) */}
             {profile && (
               <div className="flex flex-col gap-4 mb-6">
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">DTI Ratio</span>
-                    <span className="font-medium font-mono">
-                      {dti.toFixed(1)}%{" "}
-                      <span className="text-muted-foreground text-xs">
-                        (safe: {"<"}43%)
+                {/* DTI Impact */}
+                {dtiImpact > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">DTI Impact</span>
+                      <span className="font-medium font-mono">
+                        +{dtiImpact.toFixed(1)}%
                       </span>
-                    </span>
+                    </div>
+                    <Progress
+                      value={Math.min(dtiImpact * 2, 100)}
+                      className={cn(
+                        "h-2",
+                        dtiImpact < 5
+                          ? "[&>div]:bg-success"
+                          : dtiImpact < 10
+                            ? "[&>div]:bg-warning"
+                            : "[&>div]:bg-destructive"
+                      )}
+                    />
                   </div>
-                  <Progress
-                    value={Math.min(dti, 100)}
-                    className={cn(
-                      "h-2",
-                      dti < 36
-                        ? "[&>div]:bg-success"
-                        : dti < 43
-                          ? "[&>div]:bg-warning"
-                          : "[&>div]:bg-destructive"
-                    )}
-                  />
-                </div>
+                )}
 
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Monthly Payment</span>
-                    <span className="font-medium font-mono">
-                      ${monthlyPayment.toLocaleString()}/mo
-                    </span>
+                {/* Monthly Payment */}
+                {monthlyPayment > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Monthly Payment</span>
+                      <span className="font-medium font-mono">
+                        ${monthlyPayment.toLocaleString()}/mo
+                      </span>
+                    </div>
+                    <Progress
+                      value={Math.min(ptiRatio, 100)}
+                      className={cn(
+                        "h-2",
+                        ptiRatio < 20
+                          ? "[&>div]:bg-success"
+                          : ptiRatio < 30
+                            ? "[&>div]:bg-warning"
+                            : "[&>div]:bg-destructive"
+                      )}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {ptiRatio.toFixed(1)}% of disposable income
+                    </p>
                   </div>
-                  <Progress
-                    value={Math.min(pti, 100)}
-                    className={cn(
-                      "h-2",
-                      pti < 20
-                        ? "[&>div]:bg-success"
-                        : pti < 30
-                          ? "[&>div]:bg-warning"
-                          : "[&>div]:bg-destructive"
-                    )}
-                  />
-                </div>
+                )}
 
+                {/* Risk Level */}
                 <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
                   <span className="text-sm text-muted-foreground">Risk Level</span>
                   <div className="flex items-center gap-2">
-                    <div className={cn("h-3 w-3 rounded-full", riskIndicator.color)} />
+                    <div
+                      className={cn("h-3 w-3 rounded-full", riskIndicator.color)}
+                    />
                     <span className="text-sm font-medium">{riskIndicator.label}</span>
                   </div>
+                </div>
+
+                {/* Emergency Fund Impact */}
+                {affordability.emergency_fund_impact !== undefined && (
+                  <div className="flex items-start gap-2 rounded-lg border border-border bg-card p-3">
+                    <Info className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="text-xs text-muted-foreground">
+                      {affordability.emergency_fund_impact > 50
+                        ? "This purchase would significantly impact your emergency fund"
+                        : affordability.emergency_fund_impact > 20
+                          ? "This purchase would moderately impact your emergency fund"
+                          : "Minimal impact on your emergency fund"}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No Profile Warning */}
+            {!profile && (
+              <div className="flex items-start gap-3 rounded-lg border border-warning/50 bg-warning/10 p-4 mb-6">
+                <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Limited Analysis
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Complete your financial profile to see personalized
+                    affordability metrics.
+                  </p>
                 </div>
               </div>
             )}
@@ -337,8 +403,8 @@ export function ProductDetailModal({
                     <div>
                       <p className="text-sm font-medium">Save Monthly</p>
                       <p className="text-xs text-muted-foreground">
-                        Save ${Math.round(product.price / 6).toLocaleString()}/month for 6
-                        months
+                        Save ${Math.round(product.price / 6).toLocaleString()}/month
+                        for 6 months
                       </p>
                     </div>
                   </div>
@@ -377,7 +443,7 @@ export function ProductDetailModal({
                 disabled={
                   !affordability.can_afford_cash && !affordability.can_afford_financing
                 }
-                onClick={handlePurchase}
+                onClick={handleAddToCart}
               >
                 <ShoppingCart className="h-5 w-5" />
                 {affordability.can_afford_cash
