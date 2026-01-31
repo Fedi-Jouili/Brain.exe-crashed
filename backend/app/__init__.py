@@ -1,0 +1,3 @@
+"""
+PriceSense Backend Application
+"""
