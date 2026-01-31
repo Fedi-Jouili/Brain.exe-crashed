@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Background & Surface */
+    --background: 220 20% 97%;
+    --foreground: 210 29% 24%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 29% 24%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 29% 24%;
+    
+    /* Primary - Trust Blue */
+    --primary: 212 72% 59%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary */
+    --secondary: 210 14% 89%;
+    --secondary-foreground: 210 29% 24%;
+    
+    /* Muted */
+    --muted: 210 14% 89%;
+    --muted-foreground: 208 7% 46%;
+    
+    /* Accent - Teal */
+    --accent: 168 76% 42%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Affordability States */
+    --success: 145 63% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 37 90% 51%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 6 78% 57%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* UI Elements */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 212 72% 59%;
+    
+    /* Chart Colors */
+    --chart-1: 212 72% 59%;
+    --chart-2: 168 76% 42%;
+    --chart-3: 145 63% 42%;
+    --chart-4: 37 90% 51%;
+    --chart-5: 270 50% 60%;
+    
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 14%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 14%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 212 72% 59%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    
+    --accent: 168 76% 42%;
+    --accent-foreground: 0 0% 100%;
+    
+    --success: 145 63% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 37 90% 51%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 6 78% 57%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 217 33% 22%;
+    --input: 217 33% 22%;
+    --ring: 212 72% 59%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
