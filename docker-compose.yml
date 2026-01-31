@@ -54,24 +54,6 @@ services:
     networks:
       - fincommerce-network
 
-  # Streamlit Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: fincommerce-frontend
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./frontend:/app
-    environment:
-      - BACKEND_URL=http://backend:8000
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - fincommerce-network
-
 networks:
   fincommerce-network:
     driver: bridge

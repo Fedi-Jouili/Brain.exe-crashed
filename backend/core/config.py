@@ -81,7 +81,6 @@ class Settings(BaseSettings):
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
     backend_url: Optional[str] = None
-    streamlit_port: Optional[int] = None
 
     @property
     def signal_weights(self) -> dict:

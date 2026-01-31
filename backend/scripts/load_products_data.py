@@ -289,7 +289,7 @@ def main():
     print("Next steps:")
     print("   1. Test product search: python scripts/test_system.py")
     print("   2. Run Agent 1: python scripts/test_agent1.py")
-    print("   3. Start frontend: streamlit run frontend/app.py")
+    print("   3. Access API docs: http://localhost:8000/docs")
     print()
 
 

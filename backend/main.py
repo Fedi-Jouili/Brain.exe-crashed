@@ -59,7 +59,7 @@ app = FastAPI(
 # Track server start time for uptime
 _server_start_time = time.time()
 
-# CORS middleware for frontend
+# CORS middleware for API access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, specify exact origins
