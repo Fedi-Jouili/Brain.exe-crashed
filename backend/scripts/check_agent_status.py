@@ -67,25 +67,25 @@ state = AgentState(
 
 try:
     state = financial_analyzer_agent.execute(state)
-    
+
     affordable_count = len(state.get('affordable_products', []))
     unaffordable_count = len(state.get('unaffordable_products', []))
     all_unaffordable = state.get('all_unaffordable', False)
-    
+
     print(f"✅ Agent 2 Executed Successfully")
     print(f"   Affordable Products: {affordable_count}")
     print(f"   Unaffordable Products: {unaffordable_count}")
     print(f"   All Unaffordable: {all_unaffordable}")
-    
+
     if affordable_count > 0:
         sample = state['affordable_products'][0]
         print(f"\n   Sample Affordable Product:")
         print(f"      {sample['product'].name} (${sample['product'].price:.2f})")
         print(f"      Financial Score: {sample.get('financial_score', 'N/A')}")
         print(f"      Risk: {sample['affordability'].get('risk_level', 'N/A')}")
-    
+
     print()
-    
+
 except Exception as e:
     print(f"❌ Agent 2 Failed: {e}")
     import traceback
@@ -111,30 +111,30 @@ state_unaffordable = AgentState(
 
 try:
     state_unaffordable = budget_pathfinder_agent.execute(state_unaffordable)
-    
+
     paths = state_unaffordable.get('alternative_paths', [])
     print(f"✅ Agent 2.5 Executed Successfully")
     print(f"   Alternative Paths Found: {len(paths)}")
-    
+
     if paths:
         print(f"\n   Path Types Generated:")
         path_types = set()
         for path in paths:
             path_types.add(path.get('path_type', 'unknown'))
-        
+
         for ptype in sorted(path_types):
             count = sum(1 for p in paths if p.get('path_type') == ptype)
             print(f"      • {ptype.replace('_', ' ').title()}: {count}")
-        
+
         # Show sample path
         sample_path = paths[0]
         print(f"\n   Sample Path:")
         print(f"      Type: {sample_path.get('path_type', 'N/A').replace('_', ' ').title()}")
         print(f"      Viability: {sample_path.get('viability_score', 0):.0f}%")
         print(f"      Timeline: {sample_path.get('timeline_months', 0)} months")
-    
+
     print()
-    
+
 except Exception as e:
     print(f"❌ Agent 2.5 Failed: {e}")
     import traceback
@@ -149,38 +149,38 @@ state['recommendations'] = []
 
 try:
     state = smart_recommender_agent.execute(state)
-    
+
     recommendations = state.get('recommendations', [])
     print(f"✅ Agent 3 Executed Successfully")
     print(f"   Recommendations Generated: {len(recommendations)}")
-    
+
     if recommendations:
         print(f"\n   Score Distribution:")
-        
+
         top_rec = recommendations[0]
         print(f"      Highest: {top_rec['final_score']:.1f}")
-        
+
         bottom_rec = recommendations[-1]
         print(f"      Lowest: {bottom_rec['final_score']:.1f}")
-        
+
         avg_score = sum(r['final_score'] for r in recommendations) / len(recommendations)
         print(f"      Average: {avg_score:.1f}")
-        
+
         # Diversity check
         clusters = [r['product'].cluster_id for r in recommendations[:10]]
         unique_clusters = len(set(clusters))
         print(f"\n   Diversity Metrics:")
         print(f"      Unique Clusters: {unique_clusters}/{len(clusters)}")
         print(f"      Diversity Score: {(unique_clusters/max(1, len(clusters)))*100:.0f}%")
-        
+
         print(f"\n   Top Recommendation:")
         top = recommendations[0]
         print(f"      {top['product'].name}")
         print(f"      Final Score: {top['final_score']:.1f}/100")
         print(f"      Explanation: {top['explanation'][:60]}...")
-    
+
     print()
-    
+
 except Exception as e:
     print(f"❌ Agent 3 Failed: {e}")
     import traceback
